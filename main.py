@@ -1,6 +1,10 @@
 from flask import Flask, request, make_response
 import os
 import signal
+import requests,time,random,uuid
+from google.oauth2 import service_account
+from google.auth.transport.requests import AuthorizedSession
+from join_db_flask import access_db
 
 app: Flask = Flask(__name__)
 
@@ -16,8 +20,14 @@ def main_page():
 
 @app.route("/join", methods = ['GET'] )
 def join_game():
-    resp = make_response('{"resp": "joined"}')
+    print("hello world!")
+    access_db()
+    resp = make_response('{"body": "text"}')
     return resp
+
+
+    
+    
     
 if __name__ == '__main__':
     main()
