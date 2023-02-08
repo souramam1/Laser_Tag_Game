@@ -16,7 +16,7 @@ def main_page():
 
 @app.route("/join", methods = ['GET'] )
 def join_game():
-    resp = make_response('{"body": "text"}')
+    resp = make_response('{"resp": "joined"}')
     return resp
     
 if __name__ == '__main__':
