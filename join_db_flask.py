@@ -19,12 +19,12 @@ def access_db():
     # Use the credentials object to authenticate a Requests session.
     authed_session = AuthorizedSession(credentials)
 
-    i_d = 1
+    i_d = 5
     hit = 0
     swoosh = 0
     join = 1
 
-    uuid = uuid.uuid4()
+    un_id = uuid.uuid4()
 
 
     game_tables = ['random', 'random1', 'random2', 'random3', 'random4']
@@ -32,7 +32,7 @@ def access_db():
     num = int(game_tables[-1][-1])
     print(num)
         
-    path = "random{}/{}.json".format(num,uuid)
+    path = "random9/{}.json".format(un_id)
     data = {"id":i_d,
             "time":time.time(),
             "hit": hit,
@@ -42,6 +42,7 @@ def access_db():
     print("Writing {} to {}".format(data, path))
     #response = requests.post(db+path, json=data) #function which actually adds the info to the table
     response = authed_session.put(db+path, json=data)
+    print(response)
 
     if response.ok:  #error checking
         print("Created new node named {}".format(response.json()["id"]))
