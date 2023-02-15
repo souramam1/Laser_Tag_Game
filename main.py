@@ -2,6 +2,7 @@ from flask import Flask, request, make_response
 import threading
 import os
 import signal
+import json
 import requests,time,random,uuid
 from google.oauth2 import service_account
 from google.auth.transport.requests import AuthorizedSession
@@ -18,45 +19,167 @@ scopes = [
 credentials = service_account.Credentials.from_service_account_file(keyfile, scopes=scopes)
 authed_session = AuthorizedSession(credentials)
 
-#variable definitions
-game_status = 0 #this will be 0 when a game is not currently being played - and 1 when a game is being played
 
-# functions #
+
+#variable definitions
+#this will be 0 when a game is not currently being played - and 1 when a game is being played
+
+var_list = []
+winner_list =[]
+player_list = []
+game_status = 0 #initialise to zero and set to 1 when game initialised
+current_game_num = 'x'
+create_game = 1 #intiallise to 0 and set to 1 when kia presses click
+winner_check = 0
+var_list.append(game_status)
+var_list.append(current_game_num)
+var_list.append(create_game)
+var_list.append(winner_check)
+
+player_dict = {}
+
+print(var_list)
+# functions 
+
 class NewThreadedTask(threading.Thread):
+    #this is where the game play will be defined 
      def __init__(self):
          super(NewThreadedTask, self).__init__()
- 
-     def run(self):
-         n = 0
-         print("inside threading subroutine")
          
-         while n <= 500:
-             print(f"n is {n}")
-             time.sleep(1)
-             n += 1
-    
-         print('Threaded task has been completed')
+     def run(self):
+        s_time = time.time()
+        print("inside threaded game subroutine")
+        winner_check = var_list[3]
+        while ((time.time()-s_time) <= 300) and (winner_check == 0):
+            print("WE ARE IN GAME PLAY")
+            winner_check = var_list[3]
 
-
-
+            game_status = 1
+            var_list[0] = game_status
+            create_game = 0
+            var_list[2] = create_game
+            current_game_num = var_list[1]
+   
+        print('End of threaded game while loop')
+        current_game_num = var_list[1]
+        game_played_update(current_game_num)
+        game_status = 0
+        var_list[0] = game_status
+        print("End of end of game changes")
+        return
+             
+        
 def response_check(response):
     
     if response.ok:  #error checking
         print("Created new node named {}".format(response.json()["id"]))
     else:
         raise ConnectionError("Could not write to database: {}".format(response.text))
+
+def checking_winner(current_game_num):
+    #query database for win
     
-def send_hit(player_i_d, max_num):
+    for players in player_list:
+
+        path = "random{}/{player}.json".format(current_game_num)
+        response = (authed_session.get(db+path))
+        #print(dict(response.json()))
+        my_response = dict(response.json())
+        prev_lives = my_response['lives']
+        winner_list.append(prev_lives)
+        losers = winner_list.count(0)
+     
+    print(winner_list)  
+    if len(player_list) - losers == 1:
+        return 1
+    else:
+        return 0   
+
+def game_played_update(current_game_num):
+    
+    i_d = 0
+    hit = 0
+    swoosh = 0
+    join = 0
+    game_played = 1
+
+    
+    path = "random{}/0.json".format(current_game_num)
+    data = {"id":i_d,
+        "time":time.time(),
+        "hit": hit,
+        "swoosh" : swoosh,
+        "joining": join,
+        "game_played": game_played}    #format of the data you are delivering to table
+
+    print("Writing {} to {}".format(data, path))
+    
+def send_hit(game_id, current_game_num):
+    
+    winner_check = checking_winner(current_game_num)
+    var_list[3] = winner_check
+    
     import uuid
     unique = uuid.uuid4()
     
-    i_d = player_i_d
+    path = "random{}/0.json".format(current_game_num)
+    response = (authed_session.get(db+path))
+    #print(dict(response.json()))
+    my_response = dict(response.json())
+    prev_lives = my_response['lives']
+    
+    i_d = game_id
     hit = 1
     swoosh = 0
     join = 0
+    game_played = 0
+    lives = prev_lives - 1
+    
+    num = current_game_num
+    print(current_game_num)
+    
+    #send(num,i_d,hit,swoosh,join,uuid)
+    path = "random{}/{}.json".format(num,unique)
+    data = {"id":i_d,
+        "time":time.time(),
+        "hit": hit,
+        "swoosh" : swoosh,
+        "joining": join,
+        "game_played": game_played,
+        "lives": "X"}    #format of the data you are delivering to table
+
+    print("Writing {} to {}".format(data, path))
+    
+    response1 = authed_session.put(db+path, json=data)
+    
+    
+    path = "random{}/{}.json".format(num,i_d)
+    data = {"id":i_d,
+        "time":time.time(),
+        "hit": hit,
+        "swoosh" : swoosh,
+        "joining": join,
+        "game_played": game_played,
+        "lives": lives}
+    
+    response2 = authed_session.put(db+path,json=data)
+    response_check(response2)
+    
+    
+def send_swoosh(game_id, max_num):
+    
+    
+    import uuid
+    unique = uuid.uuid4()
+    i_d = game_id
+    hit = 0
+    swoosh = 1
+    join = 0
+    game_played = 0
+    
     
     num = max_num 
-    
+
     print(max_num)
     
     #send(num,i_d,hit,swoosh,join,uuid)
@@ -65,7 +188,9 @@ def send_hit(player_i_d, max_num):
         "time":time.time(),
         "hit": hit,
         "swoosh" : swoosh,
-        "joining": join}    #format of the data you are delivering to table
+        "joining": join,
+        "game_played": game_played,
+        "lives": "X"}    #format of the data you are delivering to table
 
     print("Writing {} to {}".format(data, path))
     #response = requests.post(db+path, json=data) #function which actually adds the info to the table
@@ -151,10 +276,16 @@ def init_new_game_play_check(game_tables,max_num): #if time limit to join game h
     swoosh = 0
     join = 1
     game_played = 0
+    lives = 3
     #num = int(game_tables[-1][-1]) + 1
     num = max_num + 1
     print(max_num)
     
+    # global current_game_num
+    current_game_num = num
+    var_list[1] = current_game_num
+    
+    print(f"game number is {current_game_num}")
     #send(num,i_d,hit,swoosh,join,uuid)
     path = "random{}/{}.json".format(num,i_d)
     data = {"id":i_d,
@@ -162,7 +293,8 @@ def init_new_game_play_check(game_tables,max_num): #if time limit to join game h
         "hit": hit,
         "swoosh" : swoosh,
         "joining": join,
-        "game_played": game_played}    #format of the data you are delivering to table
+        "game_played": game_played,
+        "lives":lives}    #format of the data you are delivering to table
 
     print("Writing {} to {}".format(data, path))
     #response = requests.post(db+path, json=data) #function which actually adds the info to the table
@@ -200,9 +332,17 @@ def join_new_game_play_check(game_tables,max_num):
     swoosh = 0
     join = 1
     game_played = 0
+    lives = 3
 
     num = max_num
     print(num)
+    
+    global current_game_num
+    current_game_num = num
+    
+    var_list[1] = current_game_num
+    
+    print(f"game number from join func is {current_game_num}")
     
     path = "random{}/{}.json".format(num,i_d)
     data = {"id":i_d,
@@ -210,7 +350,8 @@ def join_new_game_play_check(game_tables,max_num):
         "hit": hit,
         "swoosh" : swoosh,
         "joining": join,
-        "game_played": game_played}    #format of the data you are delivering to table
+        "game_played": game_played,
+        "lives": lives}    #format of the data you are delivering to table
 
     print("Writing {} to {}".format(data, path))
     #response = requests.post(db+path, json=data) #function which actually adds the info to the table
@@ -232,22 +373,35 @@ def initialise_game_play(time_check,game_tables,max_num):
     return player_i_d
 
 #This function is the new one i added
-def initialise_game_play_not_w_time(game_played,game_tables,max_num,game_status):
+def initialise_game_play_not_w_time(game_played,game_tables,max_num,game_status,create_game):
     print("in initialise game play not w time ")
     
     
-    if (game_played == 1) & (game_status == 0): #the most recent game has already been played but no game is currently playing
+    if (game_played == 1) and (game_status == 0 or game_status == 2) and (create_game == 1): #the most recent game has already been played but no game is currently playing
         #make new table with index number greater tha most recent table in database and put in one entry (0th entry)
         init_new_game_play_check(game_tables,max_num) #this function needs to have value for game_played field so that it can be read
         player_i_d = 0
-    elif (game_played == 0) & (game_status == 0):
+        game_status = 2
+        var_list[0] = game_status
+        current_game_num = max_num + 1
+        var_list[1] = current_game_num
+        return 0
+    elif (game_played == 0) & (game_status == 0 or game_status == 2 ) & (create_game == 1):
         #join this table as a player
         join_new_game_play_check(game_tables,max_num)
         player_i_d = 1
+        game_status = 2
+        var_list[0] = game_status
+        current_game_num = max_num
+        var_list[1] = current_game_num
+        return 1
     else:
         player_i_d = -1 # when player id is -1 means player cannot join -- flash an LED
+        return -1
+        
     
-    return player_i_d
+    
+    
 
 app: Flask = Flask(__name__)
 
@@ -261,81 +415,135 @@ def main():
 def main_page():
     return "Wooo!"
 
+@app.route("/check_status", methods = ['GET'])
+def check_game():
+    game_status = var_list[0]
+    response = make_response(f"""{{"game_status": {game_status}}}""")
+    return response
+
+@app.route("/create_game_click", methods = ['GET'])
+def create_game():
+    create_game = 1
+    var_list[2] = create_game
+    response = make_response(f"""{{"create_game": {create_game}}}""")
+    return response
+
 @app.route("/join", methods = ['GET'] )
 def join_game():
+
+    data = request.json
+    json_object = json.loads(data)
+    hard_id = json_object['hard_id']
+    print(hard_id)
+    
+    
     game_tables = []
-    time_check = 0
     max_num = 0
     path = ".json"
     print("in join game")
-    access_db()
     
-    # query = "?orderBy=\"n\"&equalTo=3&print=pretty"
+    
     response = authed_session.get(db+path)
     print(response)
     
     if response.ok:
-        
-        #table_timing = table_time_made(response)
-        
-        #added just now (checks if most recent game has already been played : the game_played flag in 0th entry will be turned to 1 when it has)
+    
         game_played_check = table_game_played_check(response)
-        
-        # time_check = table_timing[0]
-        # game_tables = table_timing[1]
-        # max_num = table_timing[2]
-
+    
+        game_status = var_list[0]
+        create_game = var_list[2]
         game_played = game_played_check[0]
         print(f"game played is {game_played}")
         game_tables = game_played_check[1]
         print(game_tables)
         max_num = game_played_check[2]
+        print(f"max num is {max_num}")
         print(max_num)
         
-        
-        #player_i_d = initialise_game_play(time_check,game_tables,max_num) #either joining or initialising a new game db
-        
-        #also added just now
-        player_i_d = initialise_game_play_not_w_time(game_played,game_tables,max_num,game_status)
-        
-        #resp = make_response(f'{ "body" : {player_i_d} }')
-        resp = make_response(f"""{{"player_id": {player_i_d}}}""")
+
+        init_response = initialise_game_play_not_w_time(game_played,game_tables,max_num,game_status,create_game)
+        if init_response == 1:
+            player_list.append(init_response)
+            player_dict[hard_id] = 1
+        elif init_response == 0:
+            player_list.append(init_response)
+            player_dict[hard_id] = 0
+            
+        resp = make_response(f"""{{"response": {init_response}}}""")
         return resp
         
-        #send_hit(player_i_d)
     else:
         raise ConnectionError("Could not access database: {}".format(response.text))
     
 
 
-@app.route("/swoosh", methods = ['GET', 'POST'] ) 
+@app.route("/swoosh", methods = ['GET','POST']) 
 def swooshed():
-    i_d = request.json
-    print(i_d)
-    resp = make_response('{ "body" : "key" }')
-    return resp
+    
+    data = request.json
+    json_object = json.loads(data)
+    hard_id = json_object['id']
+    print(hard_id)
+    
+    game_id = player_dict[hard_id]
+    
+
+    
+    current_game_num = var_list[1]
+    print("swooshing")
+    print(f"current game num is {current_game_num}")
+    
+    if game_status == 1:
+        send_swoosh(game_id,current_game_num)
+        print("back after swoosh to db")
+        response = make_response(f"""{{"i_d": {i_d}}}""")
+        return response
+    else:
+        response = make_response({"no" : "game"})
+        return response
+    
 
 
+@app.route("/hit", methods = ['GET', 'POST'] ) 
+def hit():
+    
+    data = request.json
+    json_object = json.loads(data)
+    hard_id = json_object['hard_id']
+    print(hard_id)
+    
+    game_id = player_dict[hard_id]
+
+    
+    game_status = var_list[0]
+    current_game_num = var_list[1]
+    
+    if game_status == 1:
+        send_hit(game_id, current_game_num)
+        #response=make_response({"no" : "game"})
+        response = make_response(f"""{{"player_id": {game_id}}}""")
+        return response #we return the game status
+    else:
+        response=make_response({"no" : "game"})
+        return response
+    
+    
 @app.route("/play_game", methods = ['GET', 'POST'] ) 
 def background_task():
+    
     new_thread = NewThreadedTask()
+    
     new_thread.start()
+    print(f"game status after thread has started is now {var_list[0]}")
     # optionally wait for task to complete
-    new_thread.join()
+    new_thread.join() #game thread has ended
+    
+    print(f"game status after thread has ended is now {var_list[0]}")
     print("THREAD MERGED AT END OF THREAD CAST")
-    return {'thread': 'completed'}, 200
-
-@app.route("/game_test", methods = ['GET', 'POST'] ) 
-def test():
-    print("game test is being called during the thread")
-    resp = make_response('{ "returning from call" : "hello" }')
-    #print("IN THE GAME TEST FUNCTION - IT WAS CALLED")
-    return resp
-    
 
 
     
-    
+   
     
 if __name__ == '__main__':
     main()
