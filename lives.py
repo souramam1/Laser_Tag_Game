@@ -20,29 +20,14 @@ authed_session = AuthorizedSession(credentials)
 # Define the database URL (change to use your database)
 db = "https://laser-tag-testing-default-rtdb.europe-west1.firebasedatabase.app/"
 
-n = 0
-hit = 0
-swoosh = 0
-join = 1
-game_played = 1
-lives = 0
-
-path = "random63/0.json"
-#data = {"n":n, "rnd":random.random()}
-data = {"id":0,
-    "time":time.time(),
-    "hit": hit,
-    "swoosh" : swoosh,
-    "joining": join,
-    "game_played": game_played,
-    "lives": lives} 
-
-print("Writing {} to {}".format(data, path))
-response = authed_session.put(db+path, json=data)  #put creates new nodes 
 
 
-if response.ok:
-    print("Ok")
-else:
-    raise ConnectionError("Could not write to database: {}".format(response.text))
-time.sleep(1)
+
+path = "random{}/{}.json".format(46,1)
+response = (authed_session.get(db+path))
+#print(dict(response.json()))
+my_response = dict(response.json())
+print(f"my response in send hit of lives is {my_response}")
+prev_lives = my_response['lives']
+
+print(type(prev_lives))

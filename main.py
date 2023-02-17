@@ -19,7 +19,7 @@ scopes = [
 credentials = service_account.Credentials.from_service_account_file(keyfile, scopes=scopes)
 authed_session = AuthorizedSession(credentials)
 
-
+winner = None #"r" or "y"
 
 #variable definitions
 #this will be 0 when a game is not currently being played - and 1 when a game is being played
@@ -37,6 +37,7 @@ var_list.append(create_game)
 var_list.append(winner_check)
 
 player_dict = {}
+colour_dict = {22:'y', 33:'r'}
 
 print(var_list)
 # functions 
@@ -46,13 +47,20 @@ class NewThreadedTask(threading.Thread):
      def __init__(self):
          super(NewThreadedTask, self).__init__()
          
+         
      def run(self):
         s_time = time.time()
         print("inside threaded game subroutine")
+        
+        print("WE ARE IN GAME PLAY")
         winner_check = var_list[3]
-        while ((time.time()-s_time) <= 300) and (winner_check == 0):
-            print("WE ARE IN GAME PLAY")
+        print(F"WINNER CHECK IS {winner_check}")
+        while ((time.time()-s_time) <= 40) and (winner_check == 0):
+            
             winner_check = var_list[3]
+            if (time.time()%10 == 0):
+                print(f"winner check is {winner_check}")
+            
 
             game_status = 1
             var_list[0] = game_status
@@ -66,6 +74,9 @@ class NewThreadedTask(threading.Thread):
         game_status = 0
         var_list[0] = game_status
         print("End of end of game changes")
+        player_list = []
+        player_dict = {}
+        winner_list = []
         return
              
         
@@ -77,11 +88,13 @@ def response_check(response):
         raise ConnectionError("Could not write to database: {}".format(response.text))
 
 def checking_winner(current_game_num):
+    print("inside checking winner!!!!!!")
     #query database for win
-    
+    print(player_list)
     for players in player_list:
-
-        path = "random{}/{player}.json".format(current_game_num)
+        print(f"inside for loop in checking winner, player is {players}")
+        
+        path = "random{}/{}.json".format(current_game_num,players)
         response = (authed_session.get(db+path))
         #print(dict(response.json()))
         my_response = dict(response.json())
@@ -91,9 +104,12 @@ def checking_winner(current_game_num):
      
     print(winner_list)  
     if len(player_list) - losers == 1:
+        print("returning winner check is 1 from checking winner function")
         return 1
     else:
-        return 0   
+        print("returning winner check is 0 from checking winner function") 
+        return 0  
+        
 
 def game_played_update(current_game_num):
     
@@ -103,6 +119,7 @@ def game_played_update(current_game_num):
     join = 0
     game_played = 1
 
+    print("int game update after game end")
     
     path = "random{}/0.json".format(current_game_num)
     data = {"id":i_d,
@@ -111,34 +128,48 @@ def game_played_update(current_game_num):
         "swoosh" : swoosh,
         "joining": join,
         "game_played": game_played}    #format of the data you are delivering to table
+    
+    response = authed_session.put(db+path, json=data)  #put creates new nodes
+    
+    if response.ok:
+        print("Ok")
+    else:
+        raise ConnectionError("Could not write to database: {}".format(response.text))
+    time.sleep(1)
 
     print("Writing {} to {}".format(data, path))
     
 def send_hit(game_id, current_game_num):
+    print("top of send hit")
     
     winner_check = checking_winner(current_game_num)
     var_list[3] = winner_check
-    
     import uuid
     unique = uuid.uuid4()
     
-    path = "random{}/0.json".format(current_game_num)
+    path = "random{}/{}.json".format(current_game_num,game_id)
     response = (authed_session.get(db+path))
     #print(dict(response.json()))
     my_response = dict(response.json())
+    print(f"my response in send hit of lives is {my_response}")
     prev_lives = my_response['lives']
+    print("after prev lives key error")
     
     i_d = game_id
     hit = 1
     swoosh = 0
     join = 0
     game_played = 0
-    lives = prev_lives - 1
+    
+    if prev_lives > 0:
+        lives = prev_lives - 1
+    else:
+        lives = prev_lives
     
     num = current_game_num
-    print(current_game_num)
+    print(f"in hit current game num {current_game_num}")
     
-    #send(num,i_d,hit,swoosh,join,uuid)
+    #sending in hit
     path = "random{}/{}.json".format(num,unique)
     data = {"id":i_d,
         "time":time.time(),
@@ -146,13 +177,13 @@ def send_hit(game_id, current_game_num):
         "swoosh" : swoosh,
         "joining": join,
         "game_played": game_played,
-        "lives": "X"}    #format of the data you are delivering to table
+        "lives": "X"}   
 
     print("Writing {} to {}".format(data, path))
     
     response1 = authed_session.put(db+path, json=data)
     
-    
+    #sending life update
     path = "random{}/{}.json".format(num,i_d)
     data = {"id":i_d,
         "time":time.time(),
@@ -220,6 +251,7 @@ def table_time_made(response): #time creation definition #change this to check i
             print("table found : checking time creation!")
         
     #recent_game = game_tables[-1]
+    print(game_tables)
     mx = max_table_num(game_tables)
     recent_game = "random"+f"{mx}" #change random for game_tables
     print(recent_game)
@@ -242,8 +274,14 @@ def table_game_played_check(response): #time creation definition #change this to
     mx = max_table_num(game_tables)
     recent_game = "random"+f"{mx}" #change random for game_tables
     print(recent_game)
-    
-    game_played_check = my_response[f'{recent_game}'][0]['game_played'] #time most recent game_play was initialised
+    print(my_response[f'{recent_game}'])
+    try:
+        game_played_check = my_response[f'{recent_game}']['0']['game_played'] #time most recent game_play was initialised
+        print(game_played_check)
+    except TypeError:
+        game_played_check = my_response[f'{recent_game}'][0]['game_played']
+        print(game_played_check)
+        
     return game_played_check, game_tables, mx
 
 def init_new_game(game_tables,max_num): #if time limit to join game has been exceeded new game is started
@@ -465,11 +503,17 @@ def join_game():
         if init_response == 1:
             player_list.append(init_response)
             player_dict[hard_id] = 1
+            print(player_dict)
         elif init_response == 0:
             player_list.append(init_response)
             player_dict[hard_id] = 0
+            print(player_dict)
             
-        resp = make_response(f"""{{"response": {init_response}}}""")
+        send_back = 0 
+        resp = make_response(f"""{{"response": {send_back}}}""")
+        print(f"in join game the value of var_list is {var_list}")
+        print(f"in join game the value of player_list {player_list}")
+        print(f"in join game the value of player dict is {player_dict}")
         return resp
         
     else:
@@ -481,22 +525,23 @@ def join_game():
 def swooshed():
     
     data = request.json
-    json_object = json.loads(data)
+    json_object = dict(data)
     hard_id = json_object['id']
-    print(hard_id)
+    print((hard_id))
     
-    game_id = player_dict[hard_id]
-    
-
-    
+    game_id = player_dict[int(hard_id)]
+    game_status = var_list[0]
     current_game_num = var_list[1]
+    
     print("swooshing")
     print(f"current game num is {current_game_num}")
+    
+    print(var_list)
     
     if game_status == 1:
         send_swoosh(game_id,current_game_num)
         print("back after swoosh to db")
-        response = make_response(f"""{{"i_d": {i_d}}}""")
+        response = make_response(f"""{{"i_d": {game_id}}}""")
         return response
     else:
         response = make_response({"no" : "game"})
@@ -513,14 +558,14 @@ def hit():
     print(hard_id)
     
     game_id = player_dict[hard_id]
-
-    
     game_status = var_list[0]
     current_game_num = var_list[1]
+    print(f"current_game_num is {current_game_num}")
+    
+    print(var_list)
     
     if game_status == 1:
         send_hit(game_id, current_game_num)
-        #response=make_response({"no" : "game"})
         response = make_response(f"""{{"player_id": {game_id}}}""")
         return response #we return the game status
     else:
@@ -531,15 +576,88 @@ def hit():
 @app.route("/play_game", methods = ['GET', 'POST'] ) 
 def background_task():
     
-    new_thread = NewThreadedTask()
+    create_game = var_list[2]
+    if create_game == 1:
+        new_thread = NewThreadedTask()
+        new_thread.start()
+        print(f"game status after thread has started is now {var_list[0]}")
+        # optionally wait for task to complete
+        new_thread.join() #game thread has ended
+        print(f"game status after thread has ended is now {var_list[0]}")
+        print("THREAD MERGED AT END OF THREAD CAST")
+        response=make_response({"end":"game"})
+        return response
+    else:
+        return make_response({"not": "play"})
     
-    new_thread.start()
-    print(f"game status after thread has started is now {var_list[0]}")
-    # optionally wait for task to complete
-    new_thread.join() #game thread has ended
+@app.route("/calc_stats", methods = ['GET'])
+def calcAcc():
+    game_status = var_list[0]
+    current_game_num = var_list[1]
+    #path = f"random{current_game_num}.json"
     
-    print(f"game status after thread has ended is now {var_list[0]}")
-    print("THREAD MERGED AT END OF THREAD CAST")
+    if game_status == 0:
+        path = "statistics_test.json"
+
+        response = (authed_session.get(db+path))
+        my_response = dict(response.json())
+
+        if response.ok:
+            countHashTable = {}
+            
+            for entry in my_response.values():
+                id = entry["id"]
+                if id in countHashTable:
+                    countHashTable[id][0] += 1
+                    countHashTable[id][1] += entry["hit"]
+                else:
+                    countHashTable[id] = [1, entry["hit"]]
+
+            accuracies = {}
+            for id, counts in countHashTable.items():
+                accuracies[id] = counts[1]/counts[0]
+                
+                # {0:0.4545, 1:0.3333}
+                
+                # response {'y':0.4545,'r}
+                
+                #accuracies['win'] = 'yellow'
+            print(accuracies)
+
+            print(player_dict)
+            player_dict_inv = {v: k for k, v in player_dict.items()}
+            print(player_dict_inv)
+            player_accs = {}
+            #for key,value in accuracies.items():
+                
+
+                # red accuracies and yellow accuracies
+                # hid = player_dict_inv[key]
+                # colour = colour_dict[hid]
+                # player_accs[colour] = value
+
+            # player_accs["w"] = winner
+            
+            response = make_response({"y":45, "r":27, "w":"r"})
+            print(response)
+            #response = make_response(json.dumps(player_accs))
+            return response
+
+
+        else:
+            response = make_response({"no":"response"})
+            return response
+            raise ConnectionError("Could not access database: {}".format(response.text))
+    
+    else:
+        response = make_response({"0":"0","0":"0","0":"0"})
+        return response
+            
+        
+    
+
+
+        
 
 
     
