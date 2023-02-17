@@ -24,7 +24,7 @@ winner = None #"r" or "y"
 #variable definitions
 #this will be 0 when a game is not currently being played - and 1 when a game is being played
 
-var_list = []
+var_list = []  # game_status, game_table_number, value_of create game, winner check
 winner_list =[]
 player_list = []
 game_status = 0 #initialise to zero and set to 1 when game initialised
