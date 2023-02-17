@@ -142,8 +142,6 @@ def game_played_update(current_game_num):
 def send_hit(game_id, current_game_num):
     print("top of send hit")
     
-    winner_check = checking_winner(current_game_num)
-    var_list[3] = winner_check
     import uuid
     unique = uuid.uuid4()
     
@@ -196,6 +194,8 @@ def send_hit(game_id, current_game_num):
     response2 = authed_session.put(db+path,json=data)
     response_check(response2)
     
+    winner_check = checking_winner(current_game_num)
+    var_list[3] = winner_check
     
 def send_swoosh(game_id, max_num):
     
@@ -636,11 +636,12 @@ def calcAcc():
                 # colour = colour_dict[hid]
                 # player_accs[colour] = value
 
-            # player_accs["w"] = winner
+            player_accs["w"] = winner
             
             response = make_response({"y":45, "r":27, "w":"r"})
-            print(response)
             #response = make_response(json.dumps(player_accs))
+
+            print(response)
             return response
 
 
